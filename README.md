@@ -1,7 +1,9 @@
 AWS Glacier Backup Tool
 =======================
 
-A tool to make large backups on AWS S3 Glacier simple and reliable. The specs
+**in progress**
+
+A tool to make large backups on AWS S3 Glacier simple and reliable. The design requirements
 are:
 1. Read in credentials from a file
 2. Command-line input of file name, vault, etc.
