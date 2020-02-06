@@ -12,13 +12,42 @@ import boto3
 def main():
     vault = 'icicles-ladan'
     description = ''
-    part_size = 2**10 * 16 # 16 Megabytes
+    partsize = 2**10 * 16 # 16 Megabytes
     client = boto3.client('glacier')
-    client.initiate_multipart_upload(
+    job_response = client.initiate_multipart_upload(
             vaultName=vault,
             archiveDescription=description,
-            partSize=str(part_size),
+            partSize=str(partsize),
             )
+    hashlist = upload_parts(fname, client, vault, muid, partsize)
+    total_sha = combine_sha256(hashlist)
+    assert total_sha.digest() == sha256tree(fname).digest()
+    final_response = client.complete_multipart_upload(
+            vaultName=vault,
+            uploadID=muid,
+            checksum=total_sha,
+            archiveSize=fsize
+            )
+    print("Job's done!")
+
+def upload_parts(fname, client, vault, muid, psize):
+    """ Upload the parts of a multipart upload job.
+    """
+    start = 0
+    shas = []
+    with open(fname, 'rb') as f:
+        for chunk in iter(partial(f.read, psize), b''):
+            chunk = f.read(psize)
+            end = start + len(chunk)
+            shas.append(sha256tree(chunk))
+            client.upload_multipart_part(
+                    vaultName=vault, 
+                    uploadId=muid, 
+                    checksum=shas[-1].hexdigest(), 
+                    range='bytes %s-%s/*' %(start, end-1), 
+                    body=chunk)
+    return shas
+
 
 def sha256tree(thing):
     """ Calculate the sha256 tree checksum of a bytestring.
