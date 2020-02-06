@@ -5,6 +5,7 @@ TODO: usage string
 
 import io
 import hashlib
+from functools import partial
 
 import boto3
 
@@ -37,6 +38,9 @@ def sha256tree(thing):
         bstream = thing
     elif isinstance(thing, bytes):
         bstream = io.BytesIO(thing)
+    elif isinstance(thing, str):
+        with open(thing, 'rb') as f:
+            return sha256tree(f)
     else:
         raise ValueError('sha256 tree hash expects a byte stream or string')
     chunks = chunk_sha256(bstream)
@@ -45,7 +49,7 @@ def sha256tree(thing):
 def chunk_sha256(bstream):
     """ Compute the sha256 hash of each 1MiB chunk of a byte stream.
     """
-    return [hashlib.sha256(c) for c in iter(lambda: bstream.read(2**20), b'')]
+    return [hashlib.sha256(c) for c in iter(partial(bstream.read, 2**20), b'')]
 
 def combine_sha256(hashlist):
     """ Combine a list of sha256 hashes as a binary tree.
@@ -55,7 +59,7 @@ def combine_sha256(hashlist):
         lefts, rights = output[::2], output[1::2]
         new_out = [hashlib.sha256(l.digest() + r.digest()) for l, r in zip(lefts, rights)]
         if len(output) % 2 == 1:
-            new_out.append(output)
+            new_out.append(output[-1])
         output = new_out
     return output[0]
 
