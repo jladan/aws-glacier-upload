@@ -3,49 +3,100 @@
 TODO: usage string
 """
 
+import logging
+
 import io
+import os
 import hashlib
 from functools import partial
+from itertools import count
 
 import boto3
+from tqdm import tqdm
 
-def main():
-    vault = 'icicles-ladan'
-    description = ''
-    partsize = 2**10 * 16 # 16 Megabytes
-    client = boto3.client('glacier')
+# Set up process logging
+tsv = logging.getLogger('tsv')
+tsv.setLevel(logging.DEBUG)
+fh = logging.FileHandler('glacier-upload.log')
+formatter = logging.Formatter('%(asctime)s\t%(levelname)s\t%(message)s')
+fh.setFormatter(formatter)
+tsv.addHandler(fh)
+
+full_log = logging.getLogger('full')
+full_log.setLevel(logging.DEBUG)
+fh = logging.FileHandler('glacier-responses.log')
+fh.setFormatter(logging.Formatter('%(message)s\n'))
+full_log.addHandler(fh)
+
+archive_log = logging.getLogger('archives')
+archive_log.setLevel(logging.DEBUG)
+fh = logging.FileHandler('glacier-archives.tsv')
+fh.setFormatter(logging.Formatter('%(asctime)s\t%(message)s'))
+archive_log.addHandler(fh)
+
+def main(fname,
+        profile='default',
+        region='us-east-2',
+        vault='icicles-ladan',
+        description='',
+        partsize=2**23):
+    fsize = os.stat(fname).st_size
+    session = boto3.Session(profile_name=profile)
+    client = session.client('glacier', region)
+    tsv.debug('Initiating the multipart upload of {}'.format(fname))
+    # Upload initiation
     job_response = client.initiate_multipart_upload(
             vaultName=vault,
             archiveDescription=description,
             partSize=str(partsize),
             )
-    hashlist = upload_parts(fname, client, vault, muid, partsize)
+    full_log.debug(job_response)
+    muid = job_response['uploadId']
+    tsv.info('uploadID:%s', muid)
+    # Multi-part uploading
+    hashlist = upload_parts(fname, client, vault, muid, partsize, fsize)
+    # Verify the locally generated hashes
     total_sha = combine_sha256(hashlist)
-    assert total_sha.digest() == sha256tree(fname).digest()
+    full_log.debug('combined hash %s', total_sha.hexdigest())
+    full_log.debug('combined hash %s', sha256tree(fname).hexdigest())
+    # Close off the upload
+    tsv.debug('Closing the multipart upload')
     final_response = client.complete_multipart_upload(
             vaultName=vault,
-            uploadID=muid,
-            checksum=total_sha,
-            archiveSize=fsize
+            uploadId=muid,
+            checksum=total_sha.hexdigest(),
+            archiveSize=str(fsize)
             )
+    full_log.debug(final_response)
+    tsv.info('archiveId:%s', final_response['archiveId'])
+    archive_log.info('{}\t{}'.format(fname, final_response['archiveId']))
     print("Job's done!")
 
-def upload_parts(fname, client, vault, muid, psize):
+
+def upload_parts(fname, client, vault, muid, psize, total_size=None):
     """ Upload the parts of a multipart upload job.
     """
-    start = 0
+    tsv_log = logging.getLogger('tsv')
+    full_log = logging.getLogger('full')
     shas = []
+    if total_size:
+        noparts = total_size // psize + 1 
+    else:
+        noparts = 1
     with open(fname, 'rb') as f:
-        for chunk in iter(partial(f.read, psize), b''):
-            chunk = f.read(psize)
+        for partno, chunk in tqdm(zip(count(), iter(partial(f.read, psize), b'')), total=noparts):
+            start = partno * psize
             end = start + len(chunk)
             shas.append(sha256tree(chunk))
-            client.upload_multipart_part(
+            full_log.debug('part {} sha256:{}'.format(partno, shas[-1].hexdigest()))
+            response = client.upload_multipart_part(
                     vaultName=vault, 
                     uploadId=muid, 
                     checksum=shas[-1].hexdigest(), 
                     range='bytes %s-%s/*' %(start, end-1), 
                     body=chunk)
+            full_log.info(response)
+            tsv_log.info('part:{}\tchecksum:{}'.format(partno, response['checksum']))
     return shas
 
 
