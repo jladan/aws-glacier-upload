@@ -72,6 +72,11 @@ def main(fname,
     archive_log.info('{}\t{}'.format(fname, final_response['archiveId']))
     print("Job's done!")
 
+def abort_uploads():
+    # XXX Need to get the client properly
+    mpus = client.list_multipart_uploads(vaultName=vault)
+    for mpu in mpus:
+        client.abort_multipart_upload(vaultName=vault, uploadId=mpu['MultipartUploadId'])
 
 def upload_parts(fname, client, vault, muid, psize, total_size=None):
     """ Upload the parts of a multipart upload job.
