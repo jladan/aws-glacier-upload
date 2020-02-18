@@ -4,6 +4,7 @@ TODO: usage string
 """
 
 import logging
+import argparse
 
 import io
 import os
@@ -34,12 +35,37 @@ fh = logging.FileHandler('glacier-archives.tsv')
 fh.setFormatter(logging.Formatter('%(asctime)s\t%(message)s'))
 archive_log.addHandler(fh)
 
-def main(fname,
+def main():
+    """ Main function of this script
+
+    The `options` are passed as the result of argparse.
+    """
+    # Set up the command line arguments
+    parser = argparse.ArgumentParser(description=__doc__)
+    # The main argument is which file to use
+    parser.add_argument("file")
+    parser.add_argument("-v", "--vault", help="The AWS Glacier vault")
+    parser.add_argument("-p", "--profile", help="The session profile to use", default="default")
+    parser.add_argument("-r", "--region", help="The region for the Glacier Vault")
+    parser.add_argument("-d", "--description", help="Archive description", default='')
+    options = parser.parse_args()
+
+    upload_file(
+            options.file, 
+            profile=options.profile,
+            region=options.region, 
+            vault=options.vault, 
+            description=options.description,
+            partsize=2**20 * 16)
+
+def upload_file(fname,
         profile='default',
-        region='us-east-2',
-        vault='icicles-ladan',
+        region='',
+        vault='',
         description='',
         partsize=2**23):
+    """ Upload a file in parts to the AWS vault
+    """
     fsize = os.stat(fname).st_size
     session = boto3.Session(profile_name=profile)
     client = session.client('glacier', region)
