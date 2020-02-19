@@ -3,13 +3,14 @@
 Performs multipart uploads to AWS S3 Glacier. Can also be used as a Python
 module.
 
-All parts are logged in `glacier-upload.log`, for potential recovery from
+All parts are logged in `glacier-upload.log` for potential recovery from
 errors. The date, filename, and archiveId are saved in `glacier-archives.tsv`
 for later downloads.
 """
 
 import logging
-import argparse
+from argparse import ArgumentParser
+from configparser import ConfigParser
 
 import io
 import os
@@ -40,13 +41,14 @@ fh = logging.FileHandler('glacier-archives.tsv')
 fh.setFormatter(logging.Formatter('%(asctime)s\t%(message)s'))
 archive_log.addHandler(fh)
 
-def main():
-    """ Main function of this script
+def get_options():
+    """ Get the options to use from commandline and config files
 
-    The `options` are passed as the result of argparse.
+    The default is to use the command-line options. But if those are undefined,
+    we check the profile options in ~/.aws/config.
     """
     # Set up the command line arguments
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = ArgumentParser(description=__doc__)
     # The main argument is which file to use
     parser.add_argument("file", help="File to backup")
     parser.add_argument("-v", "--vault", help="The AWS Glacier vault")
@@ -54,6 +56,22 @@ def main():
     parser.add_argument("-r", "--region", help="The region for the Glacier Vault")
     parser.add_argument("-d", "--description", help="Archive description", default='')
     options = parser.parse_args()
+
+    config = ConfigParser()
+    config.read(os.path.expanduser('~/.aws/config'))
+    if options.region is None:
+        options.region = config[options.profile]['region']
+    if options.vault is None:
+        options.vault = config[options.profile]['vault']
+    return options
+
+def main():
+    """ Main function of this script
+
+    The `options` are passed as the result of argparse.
+    """
+
+    options = get_options()
 
     upload_file(
             options.file, 
