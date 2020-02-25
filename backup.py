@@ -116,8 +116,6 @@ def upload_file(fname,
     hashlist = upload_parts(fname, client, vault, muid, partsize, fsize)
     # Verify the locally generated hashes
     total_sha = combine_sha256(hashlist)
-    full_log.debug('combined hash %s', total_sha.hexdigest())
-    full_log.debug('combined hash %s', sha256tree(fname).hexdigest())
     # Close off the upload
     tsv.debug('Closing the multipart upload')
     final_response = client.complete_multipart_upload(
