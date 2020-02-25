@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""" AWS Backup tool
+"""AWS Backup tool
 
 Performs multipart uploads to AWS S3 Glacier. Can also be used as a Python
 module.
@@ -7,10 +7,19 @@ module.
 All parts are logged in `glacier-upload.log` for potential recovery from
 errors. The date, filename, and archiveId are saved in `glacier-archives.tsv`
 for later downloads.
+
+The script loads the AWS credentials from ~/.aws/credentials If the same
+"vault" and "region" are used for most calls, they can be added to the AWS
+config file ~/.aws/credentials, e.g.
+
+    [default]
+    region = us-east-2
+    output = json
+    vault = default-vault-name
 """
 
 import logging
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawDescriptionHelpFormatter as DescFormatter
 from configparser import ConfigParser
 
 import io
@@ -49,7 +58,7 @@ def get_options():
     we check the profile options in ~/.aws/config.
     """
     # Set up the command line arguments
-    parser = ArgumentParser(description=__doc__)
+    parser = ArgumentParser(description=__doc__, formatter_class=DescFormatter)
     # The main argument is which file to use
     parser.add_argument("file", help="File to backup")
     parser.add_argument("-v", "--vault", help="The AWS Glacier vault")
