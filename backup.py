@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """ AWS Backup tool
 
 Performs multipart uploads to AWS S3 Glacier. Can also be used as a Python
