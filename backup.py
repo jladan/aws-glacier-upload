@@ -89,7 +89,7 @@ def main():
             region=options.region, 
             vault=options.vault, 
             description=options.description,
-            partsize=2**20 * 16)
+            partsize=2**20 * 2**10) # One GiB chunks
 
 def upload_file(fname,
         profile='default',
